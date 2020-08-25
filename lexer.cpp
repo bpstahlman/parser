@@ -50,19 +50,19 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 	switch (static_cast<TokType>(lv.index())) {
 		case TokType::OP:
 			//cout << "Yep" << endl;
-			cout << "Operator: "s << static_cast<string>(get<Op>(lv)) << endl;
+			cout << "Operator: "s << static_cast<string>(get<Op>(lv));
 			break;
 		case TokType::SYM:
-			cout << "Symbol: "s + static_cast<string>(get<Sym>(lv)) << endl;
+			cout << "Symbol: "s + static_cast<string>(get<Sym>(lv));
 			break;
 		case TokType::INT:
-			cout << "Integer: "s << get<int>(lv) << endl;
+			cout << "Integer: "s << get<int>(lv);
 			break;
 		case TokType::LP:
-			cout << "'('" << endl;
+			cout << "'('";
 			break;
 		case TokType::RP:
-			cout << "')'" << endl;
+			cout << "')'";
 			break;
 		default:
 			cout << "Unknown Lex variant!\n";
@@ -81,6 +81,9 @@ class LexIter {
 		return !(*this == rhs);
 	}
 	bool operator==(const LexIter& rhs) {
+		// Make sure we're not already at EOF.
+		set_cur_match();
+
 		// Defer to the string iterators
 		// Caveat: Can't compare current iterator with string::const_iterator{}
 		// because str.end() returns an actual pointer to one past end.
@@ -107,16 +110,33 @@ class LexIter {
 		}
 	}
 
+	string::const_iterator skip_ws() {
+		static regex re_ws{R"(\s+)"};
+		smatch m;
+
+		return regex_search(cur, end, m, re_ws) ? m[0].second : cur;
+
+	}
+
 	// Find match at current position and set cur_var accordingly.
 	void set_cur_match() {
 		smatch m;
 		// match_prev_avail flag allows consideration of leading context if not
 		// at beginning, and match_continuous requires match to begin at cur.
-		bool b = regex_search(cur, end, m, re_tok,
-				cur != beg ? match_prev_avail | match_continuous : match_default);
+		match_flag_type mflags =
+			cur != beg ? match_prev_avail | match_continuous : match_default;
 
-		if (!b)
+		// Is the input exhausted?
+		if (cur == end) {
+			// TODO: Consider use of variant exceptional value.
+			cur_var = None{};
+			return;
+		}
+
+		// Match a token.
+		if (!regex_search(cur, end, m, re_tok, mflags)) {
 			throw runtime_error("Parse error: "s + string(cur, end));
+		}
 
 		// Figure out which type of match we have and create the corresponding
 		// LexVariant.
@@ -130,8 +150,12 @@ class LexIter {
 			}
 		}
 
-		// Cache the next start location.
-		cur_next = m[0].second;
+		cur = m[0].second;
+		// Skip trailing whitespace.
+		cur = skip_ws();
+
+		// FIXME!!!: Do we need to test for eof here or will it be caught
+		// naturally by auto-increment???
 	}
 
 	bool is_eos() {
@@ -154,9 +178,6 @@ class LexIter {
 		if (!has_cur_match())
 			set_cur_match();
 
-		// Advance to next match.
-		cur = cur_next;
-
 		// Invalidate existing match.
 		cur_var = None{};
 		//cout << "ptr_diff=" << (end - cur) << endl;
@@ -169,11 +190,15 @@ class LexIter {
 	LexIter(string::const_iterator s, string::const_iterator e) :
 		beg{s}, cur{s}, end{e}
 	{
-
 	}
 
 	private:
+	struct tok_def {
+		TokType type;
+		const char* re;
+	};
 	static regex re_tok;
+	static tok_def re_toks[];
 	vector<string::const_iterator> hist;
 	string::const_iterator beg, end, cur, cur_next;
 	LexVariant cur_var;
@@ -188,6 +213,14 @@ regex LexIter::re_tok {
 	R"(|(\())"
 	R"(|(\)))"
 	R"())"
+};
+
+LexIter::tok_def LexIter::re_toks[] {
+	{TokType::OP,  R"([-+/*])"},
+	{TokType::SYM, R"(\b([[:alpha:]]+))"},
+	{TokType::INT, R"(\b(0|[1-9][0-9]*)"},
+	{TokType::LP,  R"(\()"},
+	{TokType::RP,  R"(\))"},
 };
 
 template<typename... Ts> struct overloaded : Ts... {
@@ -223,6 +256,7 @@ static void parse_with_overloaded(string expr)
 
 	}
 }
+
 static void parse(string expr)
 {
 	cout << expr << endl;
