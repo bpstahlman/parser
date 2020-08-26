@@ -29,6 +29,25 @@ struct RP {};
 struct None {};
 using LexVariant = variant<None, Op, Sym, int, LP, RP>;
 
+// Anon namespace
+namespace {
+
+	// TODO: Consider making this class static; to do so, would need to make
+	// class methods non-inline.
+	struct {
+		TokType type;
+		regex re;
+	} re_toks[] = {
+		{TokType::OP,  regex{R"([-+/*])"}},
+		{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
+		{TokType::INT, regex{R"(\b(0|[1-9][0-9]*))"}},
+		{TokType::LP,  regex{R"(\()"}},
+		{TokType::RP,  regex{R"(\))"}}
+	};
+
+
+}
+
 ostream& operator<<(ostream& os, TokType tt)
 {
     os << (tt == TokType::OP
@@ -92,9 +111,9 @@ class LexIter {
 	
 	// Convert regex submatch index to variant of 
 	// TODO: Should tok be const& or rval???
-	LexVariant create_var(int idx, string tok)
+	LexVariant create_var(TokType idx, string tok)
 	{
-		switch (static_cast<TokType>(idx)) {
+		switch (idx) {
 			case TokType::OP:
 				return LexVariant(static_cast<Op>(tok));
 			case TokType::SYM:
@@ -133,23 +152,20 @@ class LexIter {
 			return;
 		}
 
-		// Match a token.
-		if (!regex_search(cur, end, m, re_tok, mflags)) {
-			throw runtime_error("Parse error: "s + string(cur, end));
-		}
-
-		// Figure out which type of match we have and create the corresponding
-		// LexVariant.
-		// TODO: Is it safe to add 1 apart from pre-increment, given that this
-		// is a string iterator?
-		auto&& p{m.cbegin() + 1}, pe{m.cend()};
-		for (auto i = 1; p != pe; ++p, ++i) {
-			if (p->matched) {
-				cur_var = create_var(i, p->str());
+		// Try each token type looking for match.
+		for (auto& td : re_toks) {
+			// Attempt match.
+			if (regex_search(cur, end, m, td.re, mflags)) {
+				// Found match!
+				cur_var = create_var(td.type, m[0].str());
 				break;
 			}
 		}
 
+		if (m.empty())
+			throw runtime_error("Parse error: "s + string(cur, end));
+		
+		// Found a matching token.
 		cur = m[0].second;
 		// Skip trailing whitespace.
 		cur = skip_ws();
@@ -192,17 +208,13 @@ class LexIter {
 	{
 	}
 
+
 	private:
-	struct tok_def {
-		TokType type;
-		const char* re;
-	};
 	static regex re_tok;
-	static tok_def re_toks[];
+	//static tok_def re_toks[];
 	vector<string::const_iterator> hist;
 	string::const_iterator beg, end, cur, cur_next;
 	LexVariant cur_var;
-
 
 };
 regex LexIter::re_tok {
@@ -213,14 +225,6 @@ regex LexIter::re_tok {
 	R"(|(\())"
 	R"(|(\)))"
 	R"())"
-};
-
-LexIter::tok_def LexIter::re_toks[] {
-	{TokType::OP,  R"([-+/*])"},
-	{TokType::SYM, R"(\b([[:alpha:]]+))"},
-	{TokType::INT, R"(\b(0|[1-9][0-9]*)"},
-	{TokType::LP,  R"(\()"},
-	{TokType::RP,  R"(\))"},
 };
 
 template<typename... Ts> struct overloaded : Ts... {
