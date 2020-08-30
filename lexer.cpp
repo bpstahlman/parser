@@ -1,6 +1,5 @@
 #include <iostream>
 #include <iterator>
-#include <queue>
 #include <regex>
 #include <variant>
 #include <exception>
@@ -44,8 +43,6 @@ namespace {
 		{TokType::LP,  regex{R"(\()"}},
 		{TokType::RP,  regex{R"(\))"}}
 	};
-
-
 }
 
 ostream& operator<<(ostream& os, TokType tt)
@@ -90,141 +87,157 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 }
 
 // Add iterator trait
-class LexIter {
+class Lexer {
 	public:
 
-	LexIter(const LexIter& rhs) = default;
-	LexIter() = default;
+	Lexer() = delete;
+	Lexer(const string& expr) :
+		beg_it{expr.begin()}, cur_it{expr.begin()}, end_it{expr.end()} {}
 
-	bool operator!=(const LexIter& rhs) {
-		return !(*this == rhs);
+	struct LexIter {
+		// TODO: Should we make end() return a nonnegative sentinel?
+		LexIter(Lexer& lexer_in, int idx = -1) : lexer{lexer_in}, i{idx} {}
+		LexIter operator+(int idx) {
+			return LexIter {this->lexer, i + idx};
+		}
+		LexIter operator-(int idx) {
+			return LexIter {this->lexer, i - idx};
+		}
+		LexIter& operator+=(int idx) { i += idx; return *this; }
+		LexIter& operator-=(int idx) { i -= idx; return *this; }
+		LexIter& operator++() {
+			// Defer offset validation.
+			++i;
+			return *this;
+		}
+		LexVariant& operator*() {
+			if (i < 0)
+				throw runtime_error("Invalid access to end!"s); // FIXME!!!
+			// Note: Lexer's operator[] may throw.
+			return lexer[i];
+		}
+		bool operator!=(const LexIter& rhs) {
+			return !(*this == rhs);
+		}
+		bool operator==(const LexIter& rhs) {
+			if (rhs.i >= 0) {
+				// Intentionally not validating either index.
+				return rhs.i == i;
+			} else {
+				// rhs points past end, so see whether lhs does as well.
+				return !lexer.materialize_to(i);
+			}
+		}
+		Lexer& lexer;
+		int i;
+	};
+
+	LexIter begin() {
+		return LexIter{*this, 0};
 	}
-	bool operator==(const LexIter& rhs) {
-		// Make sure we're not already at EOF.
-		set_cur_match();
+	LexIter end() {
+		return LexIter{*this};
+	}
 
-		// Defer to the string iterators
-		// Caveat: Can't compare current iterator with string::const_iterator{}
-		// because str.end() returns an actual pointer to one past end.
-		return cur == rhs.cur || cur == end && rhs.cur == decltype(rhs.cur){};
+	// Ensure the string is lexed through the idx'th token, returning true
+	// unless there are fewer than idx+1 tokens.
+	bool materialize_to(int idx) {
+		size_t len = toks.size();
+		while (!eof && len++ <= idx) {
+			// This may throw.
+			if (!next())
+				return false;
+		}
+		return len > idx;
+	}
+
+	LexVariant& operator[](size_t i) {
+		// Ensure we've parsed through element i.
+		if (!materialize_to(i))
+			throw runtime_error("Invalid access!"s); // FIXME!!!
+		return toks[i];
 	}
 	
-	// Convert regex submatch index to variant of 
-	// TODO: Should tok be const& or rval???
-	LexVariant create_var(TokType idx, string tok)
+	// Convert regex submatch index to the correct variant and append to toks
+	// collection.
+	void add_var(TokType idx, string tok)
 	{
 		switch (idx) {
 			case TokType::OP:
-				return LexVariant(static_cast<Op>(tok));
+				toks.emplace_back(static_cast<Op>(tok));
+				break;
 			case TokType::SYM:
-				return LexVariant(static_cast<Sym>(tok));
+				toks.emplace_back(static_cast<Sym>(tok));
+				break;
 			case TokType::INT:
-				return LexVariant(stoi(tok));
+				toks.emplace_back(stoi(tok));
+				break;
 			case TokType::LP:
-				return LexVariant{LP{}};
+				toks.emplace_back(LP{});
+				break;
 			case TokType::RP:
-				return LexVariant{RP{}};
+				toks.emplace_back(RP{});
+				break;
 			default:
-				return LexVariant{};
+				throw runtime_error("Invalid token type!"s); // FIXME!!!
 		}
 	}
 
+	// Update string iterator to skip past any whitespace at current location.
 	string::const_iterator skip_ws() {
 		static regex re_ws{R"(\s+)"};
 		smatch m;
 
-		return regex_search(cur, end, m, re_ws) ? m[0].second : cur;
+		return regex_search(cur_it, end_it, m, re_ws, match_continuous)
+			? m[0].second
+			: cur_it;
 
 	}
 
-	// Find match at current position and set cur_var accordingly.
-	void set_cur_match() {
+	// Lex another token and append it to the toks collection, returning false
+	// if there are no more tokens.
+	bool next() {
 		smatch m;
 		// match_prev_avail flag allows consideration of leading context if not
-		// at beginning, and match_continuous requires match to begin at cur.
-		match_flag_type mflags =
-			cur != beg ? match_prev_avail | match_continuous : match_default;
+		// at beginning, and match_continuous requires match to begin at cur_it.
+		match_flag_type mflags = match_continuous |
+			(cur_it != beg_it ? match_prev_avail : match_default);
 
 		// Is the input exhausted?
-		if (cur == end) {
+		if (cur_it == end_it) {
 			// TODO: Consider use of variant exceptional value.
-			cur_var = None{};
-			return;
+			eof = true;
+			return false;
 		}
 
 		// Try each token type looking for match.
-		for (auto& td : re_toks) {
+		for (const auto& td : re_toks) {
 			// Attempt match.
-			if (regex_search(cur, end, m, td.re, mflags)) {
+			if (regex_search(cur_it, end_it, m, td.re, mflags)) {
 				// Found match!
-				cur_var = create_var(td.type, m[0].str());
+				add_var(td.type, m[0].str());
 				break;
 			}
 		}
 
+		// Normal EOF should have been caught above. Only invalid token can get
+		// us here.
 		if (m.empty())
-			throw runtime_error("Parse error: "s + string(cur, end));
+			throw runtime_error("Parse error: "s + string(cur_it, end_it));
 		
 		// Found a matching token.
-		cur = m[0].second;
+		cur_it = m[0].second;
 		// Skip trailing whitespace.
-		cur = skip_ws();
+		cur_it = skip_ws();
 
-		// FIXME!!!: Do we need to test for eof here or will it be caught
-		// naturally by auto-increment???
+		return true;
 	}
-
-	bool is_eos() {
-		return cur == string::const_iterator{};
-	}
-
-	bool has_cur_match() {
-		return !holds_alternative<None>(cur_var);
-	}
-
-	LexVariant operator*() {
-		// Use cached variant if it exists.
-		if (!has_cur_match())
-			set_cur_match();
-
-		return cur_var;
-	}
-
-	LexIter& operator++() {
-		if (!has_cur_match())
-			set_cur_match();
-
-		// Invalidate existing match.
-		cur_var = None{};
-		//cout << "ptr_diff=" << (end - cur) << endl;
-		return *this;
-	}
-
-	// TODO: Add post-increment ++: No! Implementation would be complicated for
-	// current approach...
-
-	LexIter(string::const_iterator s, string::const_iterator e) :
-		beg{s}, cur{s}, end{e}
-	{
-	}
-
 
 	private:
-	static regex re_tok;
-	//static tok_def re_toks[];
-	vector<string::const_iterator> hist;
-	string::const_iterator beg, end, cur, cur_next;
-	LexVariant cur_var;
+	vector<LexVariant> toks {};
+	string::const_iterator beg_it, end_it, cur_it, cur_next;
+	bool eof {false};
 
-};
-regex LexIter::re_tok {
-	R"(\s*(?:)"
-	R"(([-+/*]))"
-	R"(|\b([[:alpha:]]+))"
-	R"(|\b(0|[1-9][0-9]*))"
-	R"(|(\())"
-	R"(|(\)))"
-	R"())"
 };
 
 template<typename... Ts> struct overloaded : Ts... {
@@ -236,7 +249,8 @@ static void parse_with_overloaded(string expr)
 {
 	// TODO: Convert from stream to beg/end iterators.
 	cout << "Expression string: " << expr << endl;
-	for (LexIter li {expr.begin(), expr.end()}, end{}; li != end; ++li) {
+	Lexer lxr{expr};
+	for (auto li {lxr.begin()}, end {lxr.end()}; li != end; ++li) {
 		visit(overloaded {
 				[](Op op) {
 					cout << "Op: " << static_cast<string>(op) << endl;
@@ -264,11 +278,19 @@ static void parse_with_overloaded(string expr)
 static void parse(string expr)
 {
 	cout << expr << endl;
-	for (LexIter li {expr.begin(), expr.end()}, end{}; li != end; ++li) {
+	Lexer lxr{expr};
+	for (auto li {lxr.begin()}, end{lxr.end()}; li != end; ++li) {
 		cout << *li << endl;
 	}
+
+	auto li{lxr.begin()};
+	cout << "*(li+3)=" << *(li+3) << endl;
+	li += 5;
+	cout << "*(li-1)=" << *(li-1) << endl;
+
 }
 
+// TODO: Move this to a separate file...
 #define TEST_MAIN
 #ifdef TEST_MAIN
 int main()
