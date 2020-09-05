@@ -8,7 +8,7 @@ using namespace std;
 using namespace regex_constants;
 
 enum class TokType : unsigned long {
-	NONE, OP, SYM, INT, FLT, LP, RP
+	NONE, OP, SYM, INT, FLT, LP, RP, EQ
 };
 
 struct Op {
@@ -23,10 +23,11 @@ struct Sym {
 	string name;
 };
 
-struct LP {};
-struct RP {};
+struct Lp {};
+struct Rp {};
+struct Eq {};
 struct None {};
-using LexVariant = variant<None, Op, Sym, int, double, LP, RP>;
+using LexVariant = variant<None, Op, Sym, int, double, Lp, Rp, Eq>;
 
 // Anon namespace
 namespace {
@@ -43,7 +44,8 @@ namespace {
 		// FIXME: Make this true float format...
 		{TokType::FLT, regex{R"(\b(0|[1-9][0-9]*))"}},
 		{TokType::LP,  regex{R"(\()"}},
-		{TokType::RP,  regex{R"(\))"}}
+		{TokType::RP,  regex{R"(\))"}},
+		{TokType::EQ,  regex{R"(=)"}}
 	};
 }
 
@@ -61,6 +63,8 @@ ostream& operator<<(ostream& os, TokType tt)
 			? "left paren"
 			: tt == TokType::RP
 			? "right paren"
+			: tt == TokType::EQ
+			? "equals"
 			: "unknown");
     return os;
 }
@@ -86,6 +90,9 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 			break;
 		case TokType::RP:
 			cout << "')'";
+			break;
+		case TokType::EQ:
+			cout << "'='";
 			break;
 		default:
 			cout << "Unknown Lex variant!\n";
@@ -115,9 +122,20 @@ class Lexer {
 		}
 		LexIter& operator+=(int idx) { i += idx; return *this; }
 		LexIter& operator-=(int idx) { i -= idx; return *this; }
+		LexIter operator++(int) {
+			// Defer offset validation.
+			// Note: Auto post-increment changes this's index but returns
+			// iterator with the old index.
+			return LexIter {lexer, i++};
+		}
 		LexIter& operator++() {
 			// Defer offset validation.
 			++i;
+			return *this;
+		}
+		LexIter& operator--() {
+			// Defer offset validation.
+			--i;
 			return *this;
 		}
 		LexVariant& operator*() {
@@ -186,10 +204,13 @@ class Lexer {
 				toks.emplace_back(stod(tok));
 				break;
 			case TokType::LP:
-				toks.emplace_back(LP{});
+				toks.emplace_back(Lp{});
 				break;
 			case TokType::RP:
-				toks.emplace_back(RP{});
+				toks.emplace_back(Rp{});
+				break;
+			case TokType::EQ:
+				toks.emplace_back(Eq{});
 				break;
 			default:
 				throw runtime_error("Invalid token type!"s); // FIXME!!!
@@ -277,11 +298,14 @@ static void parse_with_overloaded(string expr)
 				[](double d) {
 					cout << "Double: " << d << endl;
 				},
-				[](LP lp) {
+				[](Lp lp) {
 					cout << "Left paren" << endl;
 				},
-				[](RP rp) {
+				[](Rp rp) {
 					cout << "Right paren" << endl;
+				},
+				[](Eq eq) {
+					cout << "Equals" << endl;
 				},
 				[](None none) {
 					cout << "None!\n";
