@@ -8,7 +8,7 @@ using namespace std;
 using namespace regex_constants;
 
 enum class TokType : unsigned long {
-	NONE, OP, SYM, INT, LP, RP
+	NONE, OP, SYM, INT, FLT, LP, RP
 };
 
 struct Op {
@@ -26,7 +26,7 @@ struct Sym {
 struct LP {};
 struct RP {};
 struct None {};
-using LexVariant = variant<None, Op, Sym, int, LP, RP>;
+using LexVariant = variant<None, Op, Sym, int, double, LP, RP>;
 
 // Anon namespace
 namespace {
@@ -40,6 +40,8 @@ namespace {
 		{TokType::OP,  regex{R"([-+/*])"}},
 		{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
 		{TokType::INT, regex{R"(\b(0|[1-9][0-9]*))"}},
+		// FIXME: Make this true float format...
+		{TokType::FLT, regex{R"(\b(0|[1-9][0-9]*))"}},
 		{TokType::LP,  regex{R"(\()"}},
 		{TokType::RP,  regex{R"(\))"}}
 	};
@@ -53,6 +55,8 @@ ostream& operator<<(ostream& os, TokType tt)
 			? "symbol"
 			: tt == TokType::INT
 			? "integer"
+			: tt == TokType::FLT
+			? "float"
 			: tt == TokType::LP
 			? "left paren"
 			: tt == TokType::RP
@@ -73,6 +77,9 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 			break;
 		case TokType::INT:
 			cout << "Integer: "s << get<int>(lv);
+			break;
+		case TokType::FLT:
+			cout << "Float: "s << get<double>(lv);
 			break;
 		case TokType::LP:
 			cout << "'('";
@@ -96,6 +103,9 @@ class Lexer {
 
 	struct LexIter {
 		// TODO: Should we make end() return a nonnegative sentinel?
+		// Note: Lexer& complicates creating default iterator; consider making
+		// lexer a shared pointer. This would have other advantages...
+		//LexIter()
 		LexIter(Lexer& lexer_in, int idx = -1) : lexer{lexer_in}, i{idx} {}
 		LexIter operator+(int idx) {
 			return LexIter {this->lexer, i + idx};
@@ -171,6 +181,9 @@ class Lexer {
 				break;
 			case TokType::INT:
 				toks.emplace_back(stoi(tok));
+				break;
+			case TokType::FLT:
+				toks.emplace_back(stod(tok));
 				break;
 			case TokType::LP:
 				toks.emplace_back(LP{});
@@ -261,6 +274,9 @@ static void parse_with_overloaded(string expr)
 				[](int i) {
 					cout << "Int: " << i << endl;
 				},
+				[](double d) {
+					cout << "Double: " << d << endl;
+				},
 				[](LP lp) {
 					cout << "Left paren" << endl;
 				},
@@ -289,20 +305,5 @@ static void parse(string expr)
 	cout << "*(li-1)=" << *(li-1) << endl;
 
 }
-
-// TODO: Move this to a separate file...
-#define TEST_MAIN
-#ifdef TEST_MAIN
-int main()
-{
-	string s = "foo+5-10 *  (baz+(foo / bammo))";
-	cout << "First parse...\n";
-	parse_with_overloaded(s);
-	cout << "Second parse...\n";
-	parse(s);
-
-	return 0;
-}
-#endif
 
 // vim:ts=4:sw=4:noet:tw=80
