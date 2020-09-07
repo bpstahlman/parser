@@ -3,6 +3,7 @@
 #include <regex>
 #include <variant>
 #include <exception>
+#include <string>
 
 using namespace std;
 using namespace regex_constants;
@@ -32,6 +33,10 @@ using LexVariant = variant<None, Op, Sym, int, double, Lp, Rp, Eq>;
 // Anon namespace
 namespace {
 
+	const string dig_seq {R"((?:[0-9]+))"};
+	const string exp {R"((?:[eE][-+]?)"s + dig_seq + ")"s};
+	const string hexp {R"((?:[pP][-+]?)"s + dig_seq + ")"s};
+	const string hex_dig_seq {R"((?:[0-9a-fA-F]+))"};
 	// TODO: Consider making this class static; to do so, would need to make
 	// class methods non-inline.
 	struct {
@@ -40,9 +45,26 @@ namespace {
 	} re_toks[] = {
 		{TokType::OP,  regex{R"([-+/*])"}},
 		{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
-		{TokType::INT, regex{R"(\b(0|[1-9][0-9]*))"}},
-		// FIXME: Make this true float format...
-		{TokType::FLT, regex{R"(\b(0|[1-9][0-9]*))"}},
+		// Allow all valid float formats (including hex with mandatory
+		// exponent).
+		{TokType::FLT, regex{
+				dig_seq + exp
+				+ "|"s + dig_seq + "?\\."s + dig_seq + exp + "?"s
+				+ "|"s + dig_seq + "\\."s + exp + "?"s
+				+ "|0[xX](?:"s + hex_dig_seq + hexp
+						  + "|"s + hex_dig_seq + "?\\."s + hex_dig_seq + hexp
+				          + "|"s + hex_dig_seq + "\\."s + hexp
+				+ ")"
+		}},
+		// Allow decimal, octal and hex integers.
+		// TODO: Weed out bad octal, etc...
+		{TokType::INT, regex{
+				"(?:"s
+				+        "0[xX][0-9a-fA-F]+"s // hex
+				+ "|"s + "0[0-7]*"s           // oct
+				+ "|"s + "1[0-9]*"s           // dec
+				+ ")"s
+		}},
 		{TokType::LP,  regex{R"(\()"}},
 		{TokType::RP,  regex{R"(\))"}},
 		{TokType::EQ,  regex{R"(=)"}}
@@ -55,10 +77,10 @@ ostream& operator<<(ostream& os, TokType tt)
 			? "operator"
 			: tt == TokType::SYM
 			? "symbol"
-			: tt == TokType::INT
-			? "integer"
 			: tt == TokType::FLT
 			? "float"
+			: tt == TokType::INT
+			? "integer"
 			: tt == TokType::LP
 			? "left paren"
 			: tt == TokType::RP
@@ -79,11 +101,9 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 		case TokType::SYM:
 			cout << "Symbol: "s + static_cast<string>(get<Sym>(lv));
 			break;
-		case TokType::INT:
-			cout << "Integer: "s << get<int>(lv);
-			break;
 		case TokType::FLT:
-			cout << "Float: "s << get<double>(lv);
+			break;
+		case TokType::INT:
 			break;
 		case TokType::LP:
 			cout << "'('";
@@ -198,7 +218,7 @@ class Lexer {
 				toks.emplace_back(static_cast<Sym>(tok));
 				break;
 			case TokType::INT:
-				toks.emplace_back(stoi(tok));
+				toks.emplace_back(std::stoi(tok, 0, 0));
 				break;
 			case TokType::FLT:
 				toks.emplace_back(stod(tok));
@@ -245,13 +265,16 @@ class Lexer {
 		}
 
 		// Try each token type looking for match.
+		int i = 0;
 		for (const auto& td : re_toks) {
 			// Attempt match.
 			if (regex_search(cur_it, end_it, m, td.re, mflags)) {
 				// Found match!
+				cout << "Found match: " << i << ": " << m[0].str() << endl;
 				add_var(td.type, m[0].str());
 				break;
 			}
+			i++;
 		}
 
 		// Normal EOF should have been caught above. Only invalid token can get
