@@ -44,6 +44,7 @@ class Parser {
 double Parser::operator()() {
 	auto it {lexer.begin()}, ite {lexer.end()};
 	try {
+		// FIXME: Make sure nothing remains after top-level...
 		auto [success, value] = assign_or_expr(it, ite);
 		return value;
 	} catch(runtime_error& e) {
