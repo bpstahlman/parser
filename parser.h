@@ -15,6 +15,10 @@ namespace {
 	using parse_result = pair<bool, double>;
 }
 
+// FIXME: Decide on home for this...
+struct NaN {};
+using Number = variant<NaN, int, long, float, double>;
+
 // -- Expression Grammar --
 // assign_or_expr -> (symbol =)? expr
 // expr           -> term ('+' term)?
@@ -159,6 +163,8 @@ parse_result Parser::factor(Lexer::LexIter& it, Lexer::LexIter& ite)
 	double ret;
 	// factor         -> '(' expr ')'
 	//                 | number
+	//                 | sym
+	//                 | sym '(' expr ')'
 
 	if (auto* lp = get_if<Lp>(&*it)) {
 		// '(' expr ')'
