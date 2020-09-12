@@ -13,7 +13,12 @@ void run_repl()
 		Lexer lxr{line};
 		Parser p{lxr, syms};
 		auto res = p();
-		cout << ">> " << res << "\n% ";
+		// FIXME: Better way - overload output operator...
+		if (holds_alternative<None>(res))
+			cout << ">> (Null)\n% ";
+		else
+			cout << ">> " << get<double>(res) << "\n% ";
+
 		line.clear();
 	}
 }

@@ -3,23 +3,12 @@
 #include <variant>
 #include <exception>
 #include "lexer.h"
+#include "dispatcher.h"
 
 using namespace std;
 
-using symtbl = map<string, double>;
-
-// Anon namespace
-namespace {
-
-	// TODO: Define in class?
-	using parse_result = pair<bool, double>;
-}
-
-// FIXME: Decide on home for this...
-struct NaN {};
-using Number = variant<NaN, int, long, float, double>;
-
 // -- Expression Grammar --
+// exprs          -> assign_or_expr ( ',' assign_or_expr )*
 // assign_or_expr -> (symbol =)? expr
 // expr           -> term ('+' term)?
 // term           -> term ('*' factor)?
@@ -32,32 +21,77 @@ class Parser {
 	Parser(Lexer &lexer_in, symtbl& symbols_in) :
 		lexer{lexer_in}, symbols{symbols_in} {}
 
-	parse_result assign_or_expr(Lexer::LexIter& it, Lexer::LexIter& ite);
-	parse_result expr(Lexer::LexIter& it, Lexer::LexIter& ite);
-	parse_result term(Lexer::LexIter& it, Lexer::LexIter& ite);
-	parse_result factor(Lexer::LexIter& it, Lexer::LexIter& ite);
-	double operator()();
+	// FIXME: Decide on return value.
+	vector<Number> exprs(Lexer::LexIter& it, Lexer::LexIter& ite, bool scalar_ctx = false);
+	numeric_result assign_or_expr(Lexer::LexIter& it, Lexer::LexIter& ite);
+	numeric_result expr(Lexer::LexIter& it, Lexer::LexIter& ite);
+	numeric_result term(Lexer::LexIter& it, Lexer::LexIter& ite);
+	numeric_result factor(Lexer::LexIter& it, Lexer::LexIter& ite);
+	Number operator()();
 
 	private:
 	// FIXME: Decide about constness of reference, and implications for
 	// obtaining iterators. E.g., ok to get const iterator from Lexer?
 	Lexer& lexer;
 	symtbl& symbols;
+	Dispatcher dispatcher;
 
 };
-double Parser::operator()() {
+Number Parser::operator()() {
 	auto it {lexer.begin()}, ite {lexer.end()};
 	try {
 		// FIXME: Make sure nothing remains after top-level...
-		auto [success, value] = assign_or_expr(it, ite);
-		return value;
+		// FIXME: Decide where to check for empty expression.
+		auto values = exprs(it, ite, true);
+		if (values.empty())
+			return Number{};
+		// FIXME: This is a temporary kludge... Need to cast other types at least...
+		return get<double>(values.back());
 	} catch(runtime_error& e) {
 		cout << "Error parsing expression: " << e.what() << endl;
 		throw;
 	}
 }
 
-parse_result Parser::assign_or_expr(Lexer::LexIter& it, Lexer::LexIter& ite)
+// FIXME: Decide on return value. RVO should help, but do we want
+// Fv<vector<LexVariant>>?.
+vector<Number> Parser::exprs(Lexer::LexIter& it, Lexer::LexIter& ite, bool scalar)
+{
+	// FIXME: Decide whether to use the scalar arg and remove if not.
+	vector<Number>values;
+	// exprs          -> assign_or_expr ( ',' assign_or_expr )*
+	if (it == ite)
+		// Special case: Call to assign_or_expr() at eof throws by design, so if
+		// we know we're already at eof (e.g., in empty input case), skip call
+		// to assign_or_expr and let caller decide whether empty list is ok.
+		return values;
+	while (true) {
+		auto [success, value] = assign_or_expr(it, ite);
+		if (!success) {
+			if (values.empty())
+				// Note: Let caller determine whether empty list is exceptional.
+				break;
+			throw runtime_error("Expected term!");
+		}
+
+		// Accumulate
+		// FIXME: Eventually, assign_or_expr will *return* Fv in lieu of double.
+		values.push_back(value);
+
+		if (it != ite) {
+			// Check for `,' signifying presence of another element.
+			if (holds_alternative<Comma>(*it)) {
+				++it; // Advance past comma operator to subsequent expr
+				continue;
+			}
+		}
+		break;
+	}
+
+	return move(values);
+}
+
+numeric_result Parser::assign_or_expr(Lexer::LexIter& it, Lexer::LexIter& ite)
 {
 	// assign_or_expr -> (symbol =)? expr
 	
@@ -80,14 +114,17 @@ parse_result Parser::assign_or_expr(Lexer::LexIter& it, Lexer::LexIter& ite)
 
 	// Perform assignment if applicable.
 	if (!sym_name.empty())
-		symbols[sym_name] = value;
+		// TODO: Probably store Number, not double.
+		symbols[sym_name] = get<double>(value);
 
 	return make_pair(true, value);
 
 }
 
-parse_result Parser::expr(Lexer::LexIter& it, Lexer::LexIter& ite)
+numeric_result Parser::expr(Lexer::LexIter& it, Lexer::LexIter& ite)
 {
+	// TODO: Consider performing arithmetic with Numbers', with operator
+	// overloads handling promotion.
 	double ret{};
 	auto opc = '+'; // implied addition of first term
 	while (true) {
@@ -98,9 +135,9 @@ parse_result Parser::expr(Lexer::LexIter& it, Lexer::LexIter& ite)
 
 		// Accumulate
 		if (opc == '+')
-			ret += value;
+			ret += get<double>(value);
 		else
-			ret -= value;
+			ret -= get<double>(value);
 
 		if (it != ite) {
 			// Check for + or - operator
@@ -121,7 +158,7 @@ parse_result Parser::expr(Lexer::LexIter& it, Lexer::LexIter& ite)
 
 }
 
-parse_result Parser::term(Lexer::LexIter& it, Lexer::LexIter& ite)
+numeric_result Parser::term(Lexer::LexIter& it, Lexer::LexIter& ite)
 {
 	double ret{1};
 	auto opc = '*'; // implied addition of first term
@@ -133,9 +170,9 @@ parse_result Parser::term(Lexer::LexIter& it, Lexer::LexIter& ite)
 
 		// Accumulate
 		if (opc == '*')
-			ret *= value;
+			ret *= get<double>(value);
 		else
-			ret /= value;
+			ret /= get<double>(value);
 
 		if (it != ite) {
 			// Check for * or / operator.
@@ -158,34 +195,55 @@ parse_result Parser::term(Lexer::LexIter& it, Lexer::LexIter& ite)
 
 }
 
-parse_result Parser::factor(Lexer::LexIter& it, Lexer::LexIter& ite)
+numeric_result Parser::factor(Lexer::LexIter& it, Lexer::LexIter& ite)
 {
 	double ret;
 	// factor         -> '(' expr ')'
 	//                 | number
 	//                 | sym
-	//                 | sym '(' expr ')'
+	//                 | sym '(' exprs ')'
 
-	if (auto* lp = get_if<Lp>(&*it)) {
+	if (holds_alternative<Lp>(*it)) {
 		// '(' expr ')'
 		++it;
-		auto [success, value] = assign_or_expr(it, ite);
-		if (!success)
+		auto values = exprs(it, ite, true);
+		if (values.empty())
 			throw runtime_error("Expected expr!");
-		if (!get_if<Rp>(&*it))
+		// FIXME: Need to extract the final element as long as exprs scalar arg is unimplemented.
+		// FIXME: Don't hardcode double?
+		ret = get<double>(values.back()); // FIXME
+		// Require closing paren.
+		if (!holds_alternative<Rp>(*it))
 			throw runtime_error("Missing ')'!");
-		ret = value;
 	} else if (int* i = get_if<int>(&*it)) {
 		ret = (double)*i;
 	} else if (double* d = get_if<double>(&*it)) {
 		ret = *d;
 	} else if (Sym* sym = get_if<Sym>(&*it)) {
 		string sym_name = (string)*sym;
-		// TODO: Look up in sym table.
-		auto p = symbols.find(sym_name);
-		if (p == symbols.end())
+		// Important Note: Vars and Functions exist in distinct namespaces, with
+		// the presence of postcircumfix parens used to differentiate.
+		if (it + 1 != ite && holds_alternative<Lp>(*(it + 1))) {
+			// Looks like function call.
+			it += 2; // move past symbol and `('
+			if (dispatcher.has(sym_name)) {
+				// Get the args.
+				auto values = exprs(it, ite);
+				if (!holds_alternative<Rp>(*it))
+					throw runtime_error("Missing ')'!");
+				// Call the function with args.
+				auto v = dispatcher(sym_name, values);
+				// FIXME: Revisit return mechanism...
+				ret = get<double>(v);
+			} else
+				throw runtime_error("Unknown function `"s + sym_name);
+		} else if (auto p = symbols.find(sym_name); p != symbols.end()) {
+			// Variable expansion
+			ret = p->second;
+		} else {
+			// Neither var nor function.
 			throw runtime_error("Undefined symbol `"s + sym_name + "'");
-		ret = p->second;
+		}
 	}
 	++it;
 

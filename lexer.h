@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 #include <iterator>
 #include <regex>
@@ -9,7 +11,7 @@ using namespace std;
 using namespace regex_constants;
 
 enum class TokType : unsigned long {
-	NONE, OP, SYM, INT, FLT, LP, RP, EQ
+	NONE, OP, SYM, INT, FLT, LP, RP, EQ, COMMA
 };
 
 struct Op {
@@ -27,8 +29,8 @@ struct Sym {
 struct Lp {};
 struct Rp {};
 struct Eq {};
-struct None {};
-using LexVariant = variant<None, Op, Sym, int, double, Lp, Rp, Eq>;
+struct Comma {};
+using LexVariant = variant<Op, Sym, int, double, Lp, Rp, Eq, Comma>;
 
 // Anon namespace
 namespace {
@@ -62,12 +64,13 @@ namespace {
 				"(?:"s
 				+        "0[xX][0-9a-fA-F]+"s // hex
 				+ "|"s + "0[0-7]*"s           // oct
-				+ "|"s + "1[0-9]*"s           // dec
+				+ "|"s + "[1-9][0-9]*"s       // dec
 				+ ")"s
 		}},
 		{TokType::LP,  regex{R"(\()"}},
 		{TokType::RP,  regex{R"(\))"}},
-		{TokType::EQ,  regex{R"(=)"}}
+		{TokType::EQ,  regex{"="}},
+		{TokType::COMMA,  regex{","}},
 	};
 }
 
@@ -87,6 +90,8 @@ ostream& operator<<(ostream& os, TokType tt)
 			? "right paren"
 			: tt == TokType::EQ
 			? "equals"
+			: tt == TokType::COMMA
+			? "comma"
 			: "unknown");
     return os;
 }
@@ -113,6 +118,9 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 			break;
 		case TokType::EQ:
 			cout << "'='";
+			break;
+		case TokType::COMMA:
+			cout << "','";
 			break;
 		default:
 			cout << "Unknown Lex variant!\n";
@@ -232,6 +240,9 @@ class Lexer {
 			case TokType::EQ:
 				toks.emplace_back(Eq{});
 				break;
+			case TokType::COMMA:
+				toks.emplace_back(Comma{});
+				break;
 			default:
 				throw runtime_error("Invalid token type!"s); // FIXME!!!
 		}
@@ -270,7 +281,6 @@ class Lexer {
 			// Attempt match.
 			if (regex_search(cur_it, end_it, m, td.re, mflags)) {
 				// Found match!
-				cout << "Found match: " << i << ": " << m[0].str() << endl;
 				add_var(td.type, m[0].str());
 				break;
 			}
@@ -330,8 +340,8 @@ static void parse_with_overloaded(string expr)
 				[](Eq eq) {
 					cout << "Equals" << endl;
 				},
-				[](None none) {
-					cout << "None!\n";
+				[](Comma comma) {
+					cout << "Comma" << endl;
 				}
 			}, *li);
 
