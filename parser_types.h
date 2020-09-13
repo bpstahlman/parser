@@ -1,23 +1,25 @@
 #pragma once
 
-// TODO: Shouldn't need this once LexVariant is modified/moved here.
-#include "lexer.h"
+#include <variant>
+#include <functional>
+#include <unordered_map>
+
+using namespace std;
 
 // TODO: Decide on home for these types. Perhaps a common header?
 using Fd_d = function<double(double)>;
 using Fd_dd = function<double(double, double)>;
-using Fl_l = function<long(long)>;
-using Fl_ll = function<long(long, long)>;
+using Fb_d = function<bool(double)>;
 
 // Generic arg type
-using Fv = variant<Fd_d, Fd_dd, Fl_l, Fl_ll>;
+using Fv = variant<Fd_d, Fd_dd, Fb_d>;
 
-using symtbl = map<string, double>;
+using symtbl = unordered_map<string, double>;
 
 // FIXME: Decide on home for this...
 struct None {};
 struct NaN {};
-using Number = variant<None, NaN, int, long, float, double>;
+using Number = variant<None, NaN, bool, int, long, float, double>;
 
 // TODO: Define in class?
 using parse_result = pair<bool, double>;

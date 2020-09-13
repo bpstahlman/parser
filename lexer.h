@@ -6,6 +6,7 @@
 #include <variant>
 #include <exception>
 #include <string>
+#include "overloaded.h"
 
 using namespace std;
 using namespace regex_constants;
@@ -35,6 +36,7 @@ using LexVariant = variant<Op, Sym, int, double, Lp, Rp, Eq, Comma>;
 // Anon namespace
 namespace {
 
+	const string sign {R"([-+]?)"};
 	const string dig_seq {R"((?:[0-9]+))"};
 	const string exp {R"((?:[eE][-+]?)"s + dig_seq + ")"s};
 	const string hexp {R"((?:[pP][-+]?)"s + dig_seq + ")"s};
@@ -45,28 +47,33 @@ namespace {
 		TokType type;
 		regex re;
 	} re_toks[] = {
-		{TokType::OP,  regex{R"([-+/*])"}},
-		{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
 		// Allow all valid float formats (including hex with mandatory
 		// exponent).
 		{TokType::FLT, regex{
-				dig_seq + exp
+				sign + "(?:"s
+				+ dig_seq + exp
 				+ "|"s + dig_seq + "?\\."s + dig_seq + exp + "?"s
 				+ "|"s + dig_seq + "\\."s + exp + "?"s
 				+ "|0[xX](?:"s + hex_dig_seq + hexp
 						  + "|"s + hex_dig_seq + "?\\."s + hex_dig_seq + hexp
 				          + "|"s + hex_dig_seq + "\\."s + hexp
-				+ ")"
+				+ ")"s
+				+ "|(?:nan|inf(?:inite)?)"s
+				+ ")"s,
+				regex::icase
 		}},
 		// Allow decimal, octal and hex integers.
 		// TODO: Weed out bad octal, etc...
 		{TokType::INT, regex{
-				"(?:"s
+				sign + "(?:"s
 				+        "0[xX][0-9a-fA-F]+"s // hex
 				+ "|"s + "0[0-7]*"s           // oct
 				+ "|"s + "[1-9][0-9]*"s       // dec
-				+ ")"s
+				+ ")"s,
+				regex::icase
 		}},
+		{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
+		{TokType::OP,  regex{R"([-+/*])"}},
 		{TokType::LP,  regex{R"(\()"}},
 		{TokType::RP,  regex{R"(\))"}},
 		{TokType::EQ,  regex{"="}},
@@ -306,11 +313,6 @@ class Lexer {
 	bool eof {false};
 
 };
-
-template<typename... Ts> struct overloaded : Ts... {
-	using Ts::operator()...;
-};
-template<typename... Ts> overloaded(Ts...) -> overloaded<Ts...>;
 
 static void parse_with_overloaded(string expr)
 {

@@ -12,13 +12,19 @@ void run_repl()
 	while (getline(cin, line)) {
 		Lexer lxr{line};
 		Parser p{lxr, syms};
-		auto res = p();
-		// FIXME: Better way - overload output operator...
-		if (holds_alternative<None>(res))
-			cout << ">> (Null)\n% ";
-		else
-			cout << ">> " << get<double>(res) << "\n% ";
+		try {
+			auto res = p();
+			// FIXME: Better way - overload output operator...
+			if (holds_alternative<None>(res))
+				cout << ">> (Null)\n% ";
+			else {
+				cout << ">> " << get<int>(res) << "\n% ";
+				//cout << ">> " << get<double>(res) << "\n% ";
+			}
 
+		} catch(exception& e) {
+			cout << "Error: " << e.what() << endl;
+		}
 		line.clear();
 	}
 }

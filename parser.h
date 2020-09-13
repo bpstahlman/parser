@@ -160,6 +160,7 @@ numeric_result Parser::expr(Lexer::LexIter& it, Lexer::LexIter& ite)
 
 numeric_result Parser::term(Lexer::LexIter& it, Lexer::LexIter& ite)
 {
+	// TODO: Do we really want to do mul/div with identity for a single factor?
 	double ret{1};
 	auto opc = '*'; // implied addition of first term
 	// term           -> term ('*' factor)?
@@ -169,6 +170,9 @@ numeric_result Parser::term(Lexer::LexIter& it, Lexer::LexIter& ite)
 			throw runtime_error("Expected factor!");
 
 		// Accumulate
+		// FIXME: In order to support bool/int/etc return types (basically types
+		// other than double), overload the arithmetic operators and the output
+		// operators.
 		if (opc == '*')
 			ret *= get<double>(value);
 		else
