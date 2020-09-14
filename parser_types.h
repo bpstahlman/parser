@@ -19,11 +19,16 @@ using symtbl = unordered_map<string, double>;
 // FIXME: Decide on home for this...
 struct None {};
 struct NaN {};
-using Number = variant<None, NaN, bool, int, long, float, double>;
+using Number = variant<None, bool, int, long, float, double>;
 
 // TODO: Define in class?
 using parse_result = pair<bool, double>;
 using list_result = pair<bool, vector<Number>>;
 using numeric_result = pair<bool, Number>;
 
+
+Number operator+(Number x, Number y);
+Number operator-(Number x, Number y);
+Number operator*(Number x, Number y);
+Number operator/(Number x, Number y);
 
