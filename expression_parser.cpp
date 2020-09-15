@@ -8,22 +8,21 @@ void run_repl()
 {
 	string line;
 	symtbl syms;
-
+	cout << "Expression Parser REPL\n% ";
+	cout.setf(ios::showpoint);
 	while (getline(cin, line)) {
 		Lexer lxr{line};
 		Parser p{lxr, syms};
 		try {
+			// Note: Handle possibility of multiple return values.
+			// TODO: Play with rval refs...
 			auto res = p();
-			// FIXME: Better way - overload output operator...
-			if (holds_alternative<None>(res))
-				cout << ">> (Null)\n% ";
-			else {
-				cout << ">> " << get<int>(res) << "\n% ";
-				//cout << ">> " << get<double>(res) << "\n% ";
-			}
+			for (auto& v : res)
+				cout << ">> " << v << "\n";
+			cout << "% ";
 
 		} catch(exception& e) {
-			cout << "Error: " << e.what() << endl;
+			cout << "Error:\n% " << e.what();
 		}
 		line.clear();
 	}

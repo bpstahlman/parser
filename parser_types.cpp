@@ -2,8 +2,6 @@
 #include "parser_types.h"
 #include "overloaded.h"
 
-template<size_t I> using num_type_t = variant_alternative_t<I, Number>;
-
 ostream& operator<<(ostream& os, Number v)
 {
 	visit([&](auto&& x) {
@@ -50,7 +48,7 @@ static void promote(size_t idx, Number& v)
 		using T = decay_t<decltype(x)>;
 		if constexpr (is_same_v<T, None>) {
 			// FIXME!!!: Do we even need None type?
-			throw "Can't promote type None";
+		throw runtime_error("Can't promote type None");
 		} else {
 			switch (idx) {
 				case 1:
