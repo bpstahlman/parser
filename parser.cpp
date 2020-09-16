@@ -74,8 +74,7 @@ numeric_result Parser::assign_or_expr(Lexer::iterator& it, Lexer::iterator& ite)
 
 	// Perform assignment if applicable.
 	if (!sym_name.empty())
-		// TODO: Probably store Number, not double.
-		symbols[sym_name] = get<double>(value);
+		symbols[sym_name] = value;
 
 	return make_pair(true, value);
 

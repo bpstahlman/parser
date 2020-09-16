@@ -29,13 +29,13 @@ class Dispatcher {
 
 		visit(overloaded {
 				[&](Fd_d f) {
-					ret = f(get<double>(args[0]));
+					ret = f(cast_arg<double>(args[0]));
 				},
 				[&](Fd_dd f) {
-					ret = f(get<double>(args[0]), get<double>(args[1]));
+					ret = f(cast_arg<double>(args[0]), cast_arg<double>(args[1]));
 				},
 				[&](Fb_d f) {
-					ret = f(get<double>(args[0]));
+					ret = f(cast_arg<double>(args[0]));
 				},
 		}, fv);
 

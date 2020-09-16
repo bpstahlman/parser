@@ -15,6 +15,7 @@ ostream& operator<<(ostream& os, Number v)
 	return os;
 }
 
+#ifdef CFG_NEED_PROMOTE
 template<typename R>
 R get_variant_val(const Number& x)
 {
@@ -76,28 +77,23 @@ static void promote(Number& x, Number& y)
 	promote(idx, x);
 	promote(idx, y);
 }
+#endif
 
 template<typename Oper>
 static Number do_operation(Oper op, Number x, Number y)
 {
-	// Promote numbers to common type.
-	promote(x, y);
-	switch (x.index()) {
-		case 1:
-			return op(get_variant_val<num_type_t<1>>(x), get_variant_val<num_type_t<1>>(y));
-		case 2:
-			return op(get_variant_val<num_type_t<2>>(x), get_variant_val<num_type_t<2>>(y));
-		case 3:
-			return op(get_variant_val<num_type_t<3>>(x), get_variant_val<num_type_t<3>>(y));
-		case 4:
-			return op(get_variant_val<num_type_t<4>>(x), get_variant_val<num_type_t<4>>(y));
-		case 5:
-			return op(get_variant_val<num_type_t<5>>(x), get_variant_val<num_type_t<5>>(y));
-		default:
-			// FIXME!
-			return Number{};
-	}
-
+	return visit([&](auto&& xval) {
+		using Tx = decay_t<decltype(xval)>;
+		return visit([&](auto&& yval) {
+			using Ty = decay_t<decltype(yval)>;
+			if constexpr (is_same_v<Tx, None> || is_same_v<Ty, None>) {
+				return Number{};
+			} else {
+				// Let promotion be handled naturally by the operator.
+				return Number{op(xval, yval)};
+			}
+		}, y);
+	}, x);
 }
 
 Number operator+(Number x, Number y)

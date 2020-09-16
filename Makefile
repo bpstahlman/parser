@@ -1,3 +1,4 @@
+INC = *.h
 SRC := \
 	expression_parser.cpp \
 	dispatcher.cpp \
