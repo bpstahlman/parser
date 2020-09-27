@@ -6,7 +6,7 @@ SRC := \
 	lexer.cpp \
 	parser.cpp
 
-CXX = g++-9
+CXX = g++
 # Note: Implicit link rule uses CC (not CXX) to build exe from .o's
 CC := $(CXX)
 CXXFLAGS = -std=c++17 $(if $(DEBUG),-g)

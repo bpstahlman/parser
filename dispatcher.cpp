@@ -40,10 +40,16 @@ unordered_map<string, Fv> Dispatcher::fmap {
 	{ "fmax", Fv{Fd_dd{::fmax}} },
 	{ "fmin", Fv{Fd_dd{::fmin}} },
 	{ "fabs", Fv{Fd_d{::fabs}} },
+	// FIXME: Need to convert from double to Number with cast_arg<double>()
 	{ "isfinite", Fv{Fb_d{[](double x) { return isfinite(x); }}} },
-	{ "isinf", Fv{Fb_d{::isinf}} },
-	{ "isnan", Fv{Fb_d{::isnan}} },
+	{ "isinf", Fv{Fb_d{[](double x) { return isinf(x); }}} },
+	{ "isnan", Fv{Fb_d{[](double x) { return isnan(x); }}} },
 	{ "isnormal", Fv{Fb_d{[](double x) { return isnormal(x); }}} },
 	{ "signbit", Fv{Fb_d{[](double x) { return signbit(x); }}} },
+	// FIXME: Add cast functions to convert Number to a different type of Number.
+	{ "long", Fv{FN_N{[](Number x) { return Number{cast_arg<long>(x)}; }}} },
+	{ "double", Fv{FN_N{[](Number x) { return Number{cast_arg<double>(x)}; }}} },
+	{ "str", Fv{FN_N{[](Number x) { return Number{cast_arg<string>(x)}; }}} },
+	
 
 };

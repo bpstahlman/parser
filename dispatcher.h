@@ -37,6 +37,9 @@ class Dispatcher {
 				[&](Fb_d f) {
 					ret = f(cast_arg<double>(args[0]));
 				},
+				[&](FN_N f) {
+					ret = Number{f(args[0])};
+				},
 		}, fv);
 
 		return ret;

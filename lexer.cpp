@@ -1,3 +1,4 @@
+#include <charconv>
 #include "lexer.h"
 
 using namespace std;
@@ -8,6 +9,111 @@ static const string dig_seq {R"((?:[0-9]+))"};
 static const string exp {R"((?:[eE][-+]?)"s + dig_seq + ")"s};
 static const string hexp {R"((?:[pP][-+]?)"s + dig_seq + ")"s};
 static const string hex_dig_seq {R"((?:[0-9a-fA-F]+))"};
+static const string str {R"("(?:\.|[^"])*")"};
+static const string chr {R"('(?:\.|[^'])')"};
+
+static string to_utf8(unsigned int wc)
+{
+	string s{};
+	if (wc <= 0x7f) {
+		s += wc;
+	} else if (wc <= 0x7ff) {
+		s += 0xc0 | ( wc >> 6);
+		s += 0x80 | ( wc & 0x3f);
+	} else if (wc <= 0xffff) {
+		s += 0xe0 | ( wc >> 12);
+		s += 0x80 | ((wc >> 6) & 0x3f);
+		s += 0x80 | ( wc & 0x3f);
+	} else if (wc <= 0x10ffff) {
+		s += 0xf0 | ( wc >> 18);
+		s += 0x80 | ((wc >> 12) & 0x3f);
+		s += 0x80 | ((wc >> 6) & 0x3f);
+		s += 0x80 | ( wc & 0x3f);
+		cout << "s.size()=" << s.size() << endl;
+		for (auto p{s.begin()}, pe{s.end()}; p != pe; ++p) {
+			cout << "Hey\n";
+			//cout << (unsigned long)*p << endl;
+			printf("%02x\n", *p);
+		}
+
+	} else {
+		throw runtime_error("Invalid code point");
+	}
+	return s;
+}
+
+static string process_escapes(string s)
+{
+	string ret;
+	// Note: Discard double quote at start/end.
+	const char* p{&s[0] + 1};
+	const char* pe{&s[s.size() - 1]};
+	for (; p < pe; p) {
+		if (*p == '\\') {
+			unsigned int ui;
+			char uc;
+			bool need_inc {true};
+			switch (*++p) {
+				case '\'':
+				case '\"':
+				case '\?':
+				case '\\':
+					ret += *p;
+					break;
+				case 'a': ret += '\a'; break;
+				case 'b': ret += '\b'; break;
+				case 'n': ret += '\n'; break;
+				case 'r': ret += '\r'; break;
+				case 't': ret += '\t'; break;
+				case 'v': ret += '\v'; break;
+				case 'x':
+				{
+					// hex digits till first non-hex digit (undefined if too many to fit in applicable char type)
+					++p;
+					auto [pn, ec] = from_chars(p, pe, uc, 16);
+					if (ec != errc{})
+						throw runtime_error("String error: invalid hex escape");
+					ret += uc;
+					p = pn;
+					need_inc = false;
+					break;
+				}
+				case 'u':
+				case 'U':
+				{
+					// Exactly 4 ('u') or 8 ('U') digits producing value in 0..0x10ffff
+					auto big_u = *p++ == 'U';
+					auto [pn, ec] = from_chars(p, p + (big_u ? 8 : 4), ui, 16);
+					if (ec != errc() || pn - p != (big_u ? 8 : 4) || ui > 0x10ffff)
+						throw runtime_error("String error: invalid unicode char name");
+					ret += to_utf8(ui);
+					p = pn;
+					need_inc = false;
+					break;
+				}
+				default:
+				{
+					// Check for octal
+					auto [pn, ec] = from_chars(p, p + 3, uc, 8);
+					if (ec == errc()) {
+						// 1-3 octal digits producing single byte value
+						ret += uc;
+						p = pn;
+						need_inc = false;
+					} else {
+						// Invalid escape sequence.
+						throw runtime_error("String error: invalid escape sequence");
+					}
+				}
+			}
+			if (need_inc) ++p;
+		} else {
+			ret += *p++;
+		}
+	}
+	return ret;
+}
+
 // TODO: Consider making this class static; to do so, would need to make
 // class methods non-inline.
 static const struct {
@@ -39,6 +145,8 @@ static const struct {
 			+ ")"s,
 			regex::icase
 	}},
+	{TokType::STR, regex{str}},
+	{TokType::CHR, regex{chr}},
 	{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
 	{TokType::OP,  regex{R"([-+/*])"}},
 	{TokType::LP,  regex{R"(\()"}},
@@ -57,6 +165,10 @@ ostream& operator<<(ostream& os, TokType tt)
 			? "float"
 			: tt == TokType::INT
 			? "integer"
+			: tt == TokType::STR
+			? "string"
+			: tt == TokType::CHR
+			? "char"
 			: tt == TokType::LP
 			? "left paren"
 			: tt == TokType::RP
@@ -79,9 +191,14 @@ ostream& operator<<(ostream& os, const LexVariant& lv)
 		case TokType::SYM:
 			cout << "Symbol: "s + static_cast<string>(get<Sym>(lv));
 			break;
+			// FIXME: Do this a different way (e.g., using visit)!!!!!!!!!!!!!!!!!!!!!!!
 		case TokType::FLT:
 			break;
 		case TokType::INT:
+			break;
+		case TokType::STR:
+			break;
+		case TokType::CHR:
 			break;
 		case TokType::LP:
 			cout << "'('";
@@ -165,6 +282,9 @@ void Lexer::add_var(TokType idx, string tok)
 			break;
 		case TokType::FLT:
 			toks.emplace_back(stod(tok));
+			break;
+		case TokType::STR:
+			toks.emplace_back(process_escapes(tok));
 			break;
 		case TokType::LP:
 			toks.emplace_back(Lp{});
@@ -289,3 +409,5 @@ static void parse(string expr)
 }
 
 #endif // TEST
+
+// vim:ts=4:sw=4:noet:tw=80

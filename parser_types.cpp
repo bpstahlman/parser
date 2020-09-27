@@ -82,12 +82,17 @@ static void promote(Number& x, Number& y)
 template<typename Oper>
 static Number do_operation(Oper op, Number x, Number y)
 {
+	// FIXME!!!!: Handle strings differently...
 	return visit([&](auto&& xval) {
 		using Tx = decay_t<decltype(xval)>;
 		return visit([&](auto&& yval) {
 			using Ty = decay_t<decltype(yval)>;
 			if constexpr (is_same_v<Tx, None> || is_same_v<Ty, None>) {
 				return Number{};
+			} else if constexpr (is_same_v<Tx, string> || is_same_v<Ty, string>) {
+				// FIXME!!!!!
+				throw runtime_error("String operations not yet supported!");
+				return Number{None{}};
 			} else {
 				// Let promotion be handled naturally by the operator.
 				return Number{op(xval, yval)};

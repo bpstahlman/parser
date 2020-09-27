@@ -12,7 +12,7 @@ using namespace std;
 using namespace regex_constants;
 
 enum class TokType : unsigned long {
-	NONE, OP, SYM, INT, FLT, LP, RP, EQ, COMMA
+	NONE, OP, SYM, INT, FLT, STR, CHR, LP, RP, EQ, COMMA
 };
 
 struct Op {
@@ -27,11 +27,12 @@ struct Sym {
 	string name;
 };
 
+struct Chr { char chr; };
 struct Lp {};
 struct Rp {};
 struct Eq {};
 struct Comma {};
-using LexVariant = variant<Op, Sym, int, double, Lp, Rp, Eq, Comma>;
+using LexVariant = variant<Op, Sym, int, double, string, /*Chr,*/ Lp, Rp, Eq, Comma>;
 
 ostream& operator<<(ostream& os, TokType tt);
 ostream& operator<<(ostream& os, const LexVariant& lv);

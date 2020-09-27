@@ -86,22 +86,26 @@ numeric_result Parser::expr(Lexer::iterator& it, Lexer::iterator& ite)
 	// overloads handling promotion.
 	Number ret;
 	auto opc = '+'; // implied addition of first term
+	bool first_op {true};
 	while (true) {
 		// expr           -> term ('+' term)?
 		auto [success, value] = term(it, ite);
 		if (!success)
 			throw runtime_error("Expected term!");
 
-		if (holds_alternative<None>(ret))
-			promote_and_set(ret, value, 0);
-
-		// FIXME! Need to have LexVariant include Number, rather than
-		// double/int.
-		// Accumulate
-		if (opc == '+')
-			ret = ret + value;
-		else
-			ret = ret - value;
+		if (first_op) {
+			first_op = false;
+			// FIXME! More efficient way?
+			ret = value;
+		} else {
+			// FIXME! Need to have LexVariant include Number, rather than
+			// double/int.
+			// Accumulate
+			if (opc == '+')
+				ret = ret + value;
+			else
+				ret = ret - value;
+		}
 
 		if (it != ite) {
 			// Check for + or - operator
@@ -128,23 +132,26 @@ numeric_result Parser::term(Lexer::iterator& it, Lexer::iterator& ite)
 	Number ret;
 	auto opc = '*'; // implied addition of first term
 	// term           -> term ('*' factor)?
+	bool first_op {true};
 	while (true) {
 		auto [success, value] = factor(it, ite);
 		if (!success)
 			throw runtime_error("Expected factor!");
 
-		if (holds_alternative<None>(ret))
-			promote_and_set(ret, value, 1);
-
-		// Accumulate
-		// FIXME: In order to support bool/int/etc return types (basically types
-		// other than double), overload the arithmetic operators and the output
-		// operators.
-		if (opc == '*')
-			ret = ret * value;
-		else
-			ret = ret / value;
-
+		if (first_op) {
+			first_op = false;
+			// FIXME! More efficient way?
+			ret = value;
+		} else {
+			// Accumulate
+			// FIXME: In order to support bool/int/etc return types (basically types
+			// other than double), overload the arithmetic operators and the output
+			// operators.
+			if (opc == '*')
+				ret = ret * value;
+			else
+				ret = ret / value;
+		}
 		if (it != ite) {
 			// Check for * or / operator.
 			if (auto* op = get_if<Op>(&*it)) {
@@ -190,6 +197,10 @@ numeric_result Parser::factor(Lexer::iterator& it, Lexer::iterator& ite)
 		ret = *i;
 	} else if (double* d = get_if<double>(&*it)) {
 		ret = *d;
+	} else if (string* s = get_if<string>(&*it)) {
+		// FIXME: Something more efficient that involves std::move'ing the
+		// string?
+		ret = *s;
 	} else if (Sym* sym = get_if<Sym>(&*it)) {
 		string sym_name = (string)*sym;
 		// Important Note: Vars and Functions exist in distinct namespaces, with
