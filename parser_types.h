@@ -32,7 +32,6 @@ using parse_result = pair<bool, double>;
 using list_result = pair<bool, vector<Number>>;
 using numeric_result = pair<bool, Number>;
 
-
 ostream& operator<<(ostream& os, Number x);
 Number operator+(Number x, Number y);
 Number operator-(Number x, Number y);
@@ -86,20 +85,34 @@ R cast_arg(Number x)
 			// String to number
 			R res;
 			if constexpr (is_integral_v<R>) {
-				// FIXME!!!: Should we require number to consume entire string?
-				// FIXME!!!: Probably create a function to handle this. Needs to
-				// handle leading "0x", "0X" and "+" (if desired), since
-				// from_chars doesn't handle these.
-				// Implementation Note: from_chars doesn't accept base=0, so use
-				// presence of leading 0 or 0x to determine base.
-				auto [p, ec] = from_chars(val.c_str(), val.c_str() + val.size(), res, 0);
-				cout << val << " " << val.size() << " " << val.c_str() << " " << p << " " << res << endl;
-				if (ec != errc())
-					// FIXME! Better msg...
-					throw runtime_error("Failed to cast arg ");
+				// TODO: Probably put this in a helper function that handles
+				// both integrals and floats (the former with strtoul, the
+				// latter with strtod).
+				// Implementation Note: All but the actual call should be the
+				// same.
+				char *p_end;
+				auto e_off = val.find_last_not_of(" \t");
+				if (e_off == string::npos)
+					// FIXME: No non-whitespace in string.
+					return R{};
+				++e_off; // make offset exclusive
+				auto s_off = val.find_first_not_of(" \t");
+				errno = 0;
+				// Now, we've effectively discarded leading/trailing ws
+				res = strtoul(val.c_str() + s_off, &p_end, 0);
+				auto m_off = p_end - val.c_str();
+				if (m_off == s_off) {
+					// FIXME: No conversion performed
+					return R{};
+				} else if (m_off < e_off) {
+					// FIXME: String not fully consumed
+				} else if (errno) {
+					// FIXME: ERANGE - max/min placed in res
+				}
+
 				return res;
 			} else {
-				// FIXME!!!!!
+				// FIXME!!!!! Handle floats!!!!!!!
 				return R{};
 			}
 		} else if constexpr (is_same_v<R, string>) {

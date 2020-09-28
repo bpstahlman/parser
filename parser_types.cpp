@@ -1,6 +1,9 @@
 #include <ostream>
+#include <iomanip>
 #include "parser_types.h"
 #include "overloaded.h"
+
+using namespace std;
 
 ostream& operator<<(ostream& os, Number v)
 {
@@ -9,7 +12,13 @@ ostream& operator<<(ostream& os, Number v)
 		if constexpr (is_same_v<T, None>) {
 			os << "<None>";
 		} else {
-			os << x;
+			if constexpr (is_same_v<T, string>) {
+				// Display strings properly (e.g., to be sure "42" and 42 are
+				// visually distinct).
+				os << quoted(x.c_str()); 
+			} else {
+				os << x;
+			}
 		}
 	}, v);
 	return os;
