@@ -84,37 +84,30 @@ R cast_arg(Number x)
 		} else if constexpr (is_same_v<T, string>) {
 			// String to number
 			R res;
-			if constexpr (is_integral_v<R>) {
-				// TODO: Probably put this in a helper function that handles
-				// both integrals and floats (the former with strtoul, the
-				// latter with strtod).
-				// Implementation Note: All but the actual call should be the
-				// same.
-				char *p_end;
-				auto e_off = val.find_last_not_of(" \t");
-				if (e_off == string::npos)
-					// FIXME: No non-whitespace in string.
-					return R{};
-				++e_off; // make offset exclusive
-				auto s_off = val.find_first_not_of(" \t");
-				errno = 0;
-				// Now, we've effectively discarded leading/trailing ws
-				res = strtoul(val.c_str() + s_off, &p_end, 0);
-				auto m_off = p_end - val.c_str();
-				if (m_off == s_off) {
-					// FIXME: No conversion performed
-					return R{};
-				} else if (m_off < e_off) {
-					// FIXME: String not fully consumed
-				} else if (errno) {
-					// FIXME: ERANGE - max/min placed in res
-				}
-
-				return res;
-			} else {
-				// FIXME!!!!! Handle floats!!!!!!!
+			// TODO: Probably put this in a helper function.
+			char *p_end;
+			auto e_off = val.find_last_not_of(" \t");
+			if (e_off == string::npos)
+				// FIXME: No non-whitespace in string.
 				return R{};
+			++e_off; // make offset exclusive
+			auto s_off = val.find_first_not_of(" \t");
+			errno = 0;
+			// Now, we've effectively discarded leading/trailing ws
+			if constexpr (is_integral_v<R>)
+				res = strtoul(val.c_str() + s_off, &p_end, 0);
+			else
+				res = strtod(val.c_str() + s_off, &p_end);
+			auto m_off = p_end - val.c_str();
+			if (m_off == s_off) {
+				// FIXME: No conversion performed
+				return R{};
+			} else if (m_off < e_off) {
+				// FIXME: String not fully consumed
+			} else if (errno) {
+				// FIXME: ERANGE - special/extreme values placed in res
 			}
+			return res;
 		} else if constexpr (is_same_v<R, string>) {
 			// Number to string
 			// Assumption: Number can always be converted to string.

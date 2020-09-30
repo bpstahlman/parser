@@ -5,12 +5,7 @@ using namespace std;
 // FIXME: Move all this to cpp.
 vector<Number> Parser::operator()() {
 	auto it {lexer.begin()}, ite {lexer.end()};
-	try {
-		return move(exprs(it, ite, true));
-	} catch(runtime_error& e) {
-		cout << "Error parsing expression: " << e.what() << endl;
-		throw;
-	}
+	return move(exprs(it, ite, true));
 }
 
 // FIXME: Decide on return value. RVO should help, but do we want
