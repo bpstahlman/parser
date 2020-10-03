@@ -175,6 +175,7 @@ numeric_result Parser::factor(Lexer::iterator& it, Lexer::iterator& ite)
 	//                 | number
 	//                 | sym
 	//                 | sym '(' exprs ')'
+	//                 | [-+] factor
 
 	if (holds_alternative<Lp>(*it)) {
 		// '(' expr ')'
@@ -219,7 +220,24 @@ numeric_result Parser::factor(Lexer::iterator& it, Lexer::iterator& ite)
 			// Neither var nor function.
 			throw runtime_error("Undefined symbol `"s + sym_name + "'");
 		}
+	} else if (Op* op = get_if<Op>(&*it)) {
+		// Unary op?
+		if (auto opc = ((string)*op)[0]; opc == '+' || opc == '-') {
+			++it;
+			// Recurse...
+			auto [success, value] = factor(it, ite);
+			if (!success)
+				throw runtime_error("Expected factor after unary op!");
+			// Note: Unary `+' is effectively a noop
+			if (opc == '-')
+				ret = -value;
+
+		} else {
+			// Only +/- supported as unary ops.
+			throw runtime_error("Unsupported use of "s + opc + "as unary operator!");
+		}
 	}
+
 	++it;
 
 	return make_pair(true, ret);

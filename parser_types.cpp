@@ -110,6 +110,26 @@ static Number do_operation(Oper op, Number x, Number y)
 	}, x);
 }
 
+// Unary operators
+Number operator-(Number x)
+{
+	return visit([](auto&& x) {
+		using T = decay_t<decltype(x)>;
+		if constexpr (is_same_v<T, None>) {
+			// FIXME!!!: Do we even need None type?
+			throw runtime_error("Can't negate type None");
+			return Number{None{}};
+		} else if constexpr (is_same_v<T, string>) {
+			throw runtime_error("Can't negate type string");
+			return Number{None{}};
+		} else {
+			// FIXME!!!! Test this...
+			return Number{-x};
+		}
+	}, x);
+}
+
+// Binary operators
 Number operator+(Number x, Number y)
 {
 	return do_operation(plus{}, x, y);

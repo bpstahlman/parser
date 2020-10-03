@@ -33,6 +33,7 @@ using list_result = pair<bool, vector<Number>>;
 using numeric_result = pair<bool, Number>;
 
 ostream& operator<<(ostream& os, Number x);
+Number operator-(Number x);
 Number operator+(Number x, Number y);
 Number operator-(Number x, Number y);
 Number operator*(Number x, Number y);
