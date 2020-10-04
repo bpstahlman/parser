@@ -5,6 +5,9 @@
 
 using namespace std;
 
+namespace {
+};
+
 ostream& operator<<(ostream& os, Number v)
 {
 	visit([&](auto&& x) {
@@ -88,10 +91,10 @@ static void promote(Number& x, Number& y)
 }
 #endif
 
+
 template<typename Oper>
 static Number do_operation(Oper op, Number x, Number y)
 {
-	// FIXME!!!!: Handle strings differently...
 	return visit([&](auto&& xval) {
 		using Tx = decay_t<decltype(xval)>;
 		return visit([&](auto&& yval) {
@@ -99,9 +102,16 @@ static Number do_operation(Oper op, Number x, Number y)
 			if constexpr (is_same_v<Tx, None> || is_same_v<Ty, None>) {
 				return Number{};
 			} else if constexpr (is_same_v<Tx, string> || is_same_v<Ty, string>) {
-				// FIXME!!!!!
-				throw runtime_error("String operations not yet supported!");
-				return Number{None{}};
+				// Note: plus<void> is the template specialization that deduces
+				// the operand types.
+				if constexpr (is_same_v<Oper, plus<>>) {
+					// Apply binary arg to operands cast to string.
+					return Number{op(cast_arg<string>(x), cast_arg<string>(y))};
+				} else {
+					// FIXME: Need operator - maybe do the type checking in caller?
+					throw runtime_error("Invalid binary operator use on string");
+					return Number{};
+				}
 			} else {
 				// Let promotion be handled naturally by the operator.
 				return Number{op(xval, yval)};
@@ -123,7 +133,6 @@ Number operator-(Number x)
 			throw runtime_error("Can't negate type string");
 			return Number{None{}};
 		} else {
-			// FIXME!!!! Test this...
 			return Number{-x};
 		}
 	}, x);

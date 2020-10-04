@@ -123,26 +123,22 @@ static const struct {
 	// Allow all valid float formats (including hex with mandatory
 	// exponent).
 	{TokType::FLT, regex{
-			sign + "(?:"s
-			+ dig_seq + exp
+			         dig_seq + exp
 			+ "|"s + dig_seq + "?\\."s + dig_seq + exp + "?"s
 			+ "|"s + dig_seq + "\\."s + exp + "?"s
 			+ "|0[xX](?:"s + hex_dig_seq + hexp
 					  + "|"s + hex_dig_seq + "?\\."s + hex_dig_seq + hexp
 				  + "|"s + hex_dig_seq + "\\."s + hexp
 			+ ")"s
-			+ "|(?:nan|inf(?:inite)?)"s
-			+ ")"s,
+			+ "|(?:nan|inf(?:inite)?)"s,
 			regex::icase
 	}},
 	// Allow decimal, octal and hex integers.
 	// TODO: Weed out bad octal, etc...
 	{TokType::INT, regex{
-			sign + "(?:"s
-			+        "0[xX][0-9a-fA-F]+"s // hex
+			         "0[xX][0-9a-fA-F]+"s // hex
 			+ "|"s + "0[0-7]*"s           // oct
-			+ "|"s + "[1-9][0-9]*"s       // dec
-			+ ")"s,
+			+ "|"s + "[1-9][0-9]*"s,      // dec
 			regex::icase
 	}},
 	{TokType::STR, regex{str}},
