@@ -4,12 +4,14 @@ SRC := \
 	dispatcher.cpp \
 	parser_types.cpp \
 	lexer.cpp \
-	parser.cpp
+	parser.cpp \
+	rl.cpp
 
 CXX = g++
 # Note: Implicit link rule uses CC (not CXX) to build exe from .o's
 CC := $(CXX)
-CXXFLAGS = -std=c++17 $(if $(DEBUG),-g)
+CXXFLAGS = -std=c++2a $(if $(DEBUG),-g)
+LDLIBS = -lreadline
 
 all: parser
 

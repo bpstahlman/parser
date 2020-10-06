@@ -8,7 +8,7 @@ using namespace std;
 namespace {
 };
 
-ostream& operator<<(ostream& os, Number v)
+ostream& operator<<(ostream& os, Vararg v)
 {
 	visit([&](auto&& x) {
 		using T = decay_t<decltype(x)>;
@@ -29,7 +29,7 @@ ostream& operator<<(ostream& os, Number v)
 
 #ifdef CFG_NEED_PROMOTE
 template<typename R>
-R get_variant_val(const Number& x)
+R get_variant_val(const Vararg& x)
 {
 	return visit(overloaded {
 			[](None y) {
@@ -55,7 +55,7 @@ R get_variant_val(const Number& x)
 	}, x);
 }
 
-static void promote(size_t idx, Number& v)
+static void promote(size_t idx, Vararg& v)
 {
 	visit([&,idx](auto&& x) {
 		using T = decay_t<decltype(x)>;
@@ -83,7 +83,7 @@ static void promote(size_t idx, Number& v)
 		}
 	}, v);
 }
-static void promote(Number& x, Number& y)
+static void promote(Vararg& x, Vararg& y)
 {
 	auto idx = max(x.index(), y.index());
 	promote(idx, x);
@@ -93,65 +93,65 @@ static void promote(Number& x, Number& y)
 
 
 template<typename Oper>
-static Number do_operation(Oper op, Number x, Number y)
+static Vararg do_operation(Oper op, Vararg x, Vararg y)
 {
 	return visit([&](auto&& xval) {
 		using Tx = decay_t<decltype(xval)>;
 		return visit([&](auto&& yval) {
 			using Ty = decay_t<decltype(yval)>;
 			if constexpr (is_same_v<Tx, None> || is_same_v<Ty, None>) {
-				return Number{};
+				return Vararg{};
 			} else if constexpr (is_same_v<Tx, string> || is_same_v<Ty, string>) {
 				// Note: plus<void> is the template specialization that deduces
 				// the operand types.
 				if constexpr (is_same_v<Oper, plus<>>) {
 					// Apply binary arg to operands cast to string.
-					return Number{op(cast_arg<string>(x), cast_arg<string>(y))};
+					return Vararg{op(cast_arg<string>(x), cast_arg<string>(y))};
 				} else {
 					// FIXME: Need operator - maybe do the type checking in caller?
 					throw runtime_error("Invalid binary operator use on string");
-					return Number{};
+					return Vararg{};
 				}
 			} else {
 				// Let promotion be handled naturally by the operator.
-				return Number{op(xval, yval)};
+				return Vararg{op(xval, yval)};
 			}
 		}, y);
 	}, x);
 }
 
 // Unary operators
-Number operator-(Number x)
+Vararg operator-(Vararg x)
 {
 	return visit([](auto&& x) {
 		using T = decay_t<decltype(x)>;
 		if constexpr (is_same_v<T, None>) {
 			// FIXME!!!: Do we even need None type?
 			throw runtime_error("Can't negate type None");
-			return Number{None{}};
+			return Vararg{None{}};
 		} else if constexpr (is_same_v<T, string>) {
 			throw runtime_error("Can't negate type string");
-			return Number{None{}};
+			return Vararg{None{}};
 		} else {
-			return Number{-x};
+			return Vararg{-x};
 		}
 	}, x);
 }
 
 // Binary operators
-Number operator+(Number x, Number y)
+Vararg operator+(Vararg x, Vararg y)
 {
 	return do_operation(plus{}, x, y);
 }
-Number operator-(Number x, Number y)
+Vararg operator-(Vararg x, Vararg y)
 {
 	return do_operation(minus{}, x, y);
 }
-Number operator*(Number x, Number y)
+Vararg operator*(Vararg x, Vararg y)
 {
 	return do_operation(multiplies{}, x, y);
 }
-Number operator/(Number x, Number y)
+Vararg operator/(Vararg x, Vararg y)
 {
 	return do_operation(divides{}, x, y);
 }
@@ -162,9 +162,9 @@ Number operator/(Number x, Number y)
 #include <iostream>
 int main()
 {
-	Number x{true}, y{42}, z{100.0};
+	Vararg x{true}, y{42}, z{100.0};
 
-	Number res;
+	Vararg res;
 	res = x * y;
 	cout << "x * y: " << res.index() << " res=" << res << endl;
 	res = y + z;

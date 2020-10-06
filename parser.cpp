@@ -3,25 +3,28 @@
 using namespace std;
 
 // FIXME: Move all this to cpp.
-vector<Number> Parser::operator()() {
+vector<Vararg> Parser::operator()() {
 	auto it {lexer.begin()}, ite {lexer.end()};
 	return move(exprs(it, ite, true));
 }
 
 // FIXME: Decide on return value. RVO should help, but do we want
 // Fv<vector<LexVariant>>?.
-vector<Number> Parser::exprs(Lexer::iterator& it, Lexer::iterator& ite, bool scalar)
+vector<Vararg> Parser::exprs(Lexer::iterator& it, Lexer::iterator& ite, bool scalar)
 {
 	// FIXME: Decide whether to use the scalar arg and remove if not.
-	vector<Number>values;
+	vector<Vararg>values;
 	// exprs          -> assign_or_expr ( ',' assign_or_expr )*
 	if (it == ite)
 		// Special case: Call to assign_or_expr() at eof throws by design, so if
 		// we know we're already at eof (e.g., in empty input case), skip call
 		// to assign_or_expr and let caller decide whether empty list is ok.
 		return values;
+
 	while (true) {
 		auto [success, value] = assign_or_expr(it, ite);
+		// FIXME: We don't really need success flag any more.
+		// Rationale: Empty expression is no longer an error.
 		if (!success) {
 			if (values.empty())
 				// Note: Let caller determine whether empty list is exceptional.
@@ -79,7 +82,7 @@ numeric_result Parser::expr(Lexer::iterator& it, Lexer::iterator& ite)
 {
 	// TODO: Consider performing arithmetic with Numbers', with operator
 	// overloads handling promotion.
-	Number ret;
+	Vararg ret;
 	auto opc = '+'; // implied addition of first term
 	bool first_op {true};
 	while (true) {
@@ -93,7 +96,7 @@ numeric_result Parser::expr(Lexer::iterator& it, Lexer::iterator& ite)
 			// FIXME! More efficient way?
 			ret = value;
 		} else {
-			// FIXME! Need to have LexVariant include Number, rather than
+			// FIXME! Need to have LexVariant include Vararg, rather than
 			// double/int.
 			// Accumulate
 			if (opc == '+')
@@ -124,7 +127,7 @@ numeric_result Parser::expr(Lexer::iterator& it, Lexer::iterator& ite)
 numeric_result Parser::term(Lexer::iterator& it, Lexer::iterator& ite)
 {
 	// TODO: Do we really want to do mul/div with identity for a single factor?
-	Number ret;
+	Vararg ret;
 	auto opc = '*'; // implied addition of first term
 	// term           -> term ('*' factor)?
 	bool first_op {true};
@@ -170,7 +173,7 @@ numeric_result Parser::term(Lexer::iterator& it, Lexer::iterator& ite)
 
 numeric_result Parser::factor(Lexer::iterator& it, Lexer::iterator& ite)
 {
-	Number ret;
+	Vararg ret;
 	// factor         -> '(' expr ')'
 	//                 | number
 	//                 | sym

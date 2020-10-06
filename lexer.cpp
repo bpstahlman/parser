@@ -143,7 +143,7 @@ static const struct {
 	}},
 	{TokType::STR, regex{str}},
 	{TokType::CHR, regex{chr}},
-	{TokType::SYM, regex{R"(\b([[:alpha:]]+))"}},
+	{TokType::SYM, regex{R"(\b([[:alpha:]_][[:alnum:]_]*))"}},
 	{TokType::OP,  regex{R"([-+/*])"}},
 	{TokType::LP,  regex{R"(\()"}},
 	{TokType::RP,  regex{R"(\))"}},
@@ -319,6 +319,11 @@ bool Lexer::next() {
 	match_flag_type mflags = match_continuous |
 		(cur_it != beg_it ? match_prev_avail : match_default);
 
+	// Special Case: skip ws on first call so that input containing only
+	// whitespace is treated the same as empty input.
+	if (cur_it == beg_it)
+		cur_it = skip_ws();
+	
 	// Is the input exhausted?
 	if (cur_it == end_it) {
 		// TODO: Consider use of variant exceptional value.

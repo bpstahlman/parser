@@ -23,12 +23,12 @@ class Parser {
 		lexer{lexer_in}, symbols{symbols_in} {}
 
 	// FIXME: Decide on return value.
-	vector<Number> exprs(Lexer::iterator& it, Lexer::iterator& ite, bool scalar_ctx = false);
+	vector<Vararg> exprs(Lexer::iterator& it, Lexer::iterator& ite, bool scalar_ctx = false);
 	numeric_result assign_or_expr(Lexer::iterator& it, Lexer::iterator& ite);
 	numeric_result expr(Lexer::iterator& it, Lexer::iterator& ite);
 	numeric_result term(Lexer::iterator& it, Lexer::iterator& ite);
 	numeric_result factor(Lexer::iterator& it, Lexer::iterator& ite);
-	vector<Number> operator()();
+	vector<Vararg> operator()();
 
 	private:
 	// FIXME: Decide about constness of reference, and implications for

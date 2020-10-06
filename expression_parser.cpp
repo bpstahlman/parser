@@ -18,13 +18,13 @@ void run_repl()
 			// TODO: Play with rval refs...
 			auto res = p();
 			for (auto& v : res)
-				cout << ">> " << v;
+				cout << ">> " << v << "\n";
 			// Note: The CR entered by user obviates need for a newline here.
 			// FIXME: Look at output operator to see where extra linebreak is coming from...
-			cout << "\n% ";
+			cout << "% ";
 
 		} catch(exception& e) {
-			cout << "Error: " << e.what() << "\n";
+			cout << "Error: " << e.what() << "\n% ";
 		}
 		line.clear();
 	}

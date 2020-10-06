@@ -19,8 +19,8 @@ namespace {
 class Dispatcher {
 	public:
 	bool has(string name) { return !!fmap.count(name); }
-	Number operator()(const string& name, const vector<Number>& args) {
-		Number ret;
+	Vararg operator()(const string& name, const vector<Vararg>& args) {
+		Vararg ret;
 		// Look up function name to get type.
 		if (!fmap.count(name))
 			return ret;
@@ -37,8 +37,17 @@ class Dispatcher {
 				[&](Fb_d f) {
 					ret = f(cast_arg<double>(args[0]));
 				},
+				[&](Fl_s f) {
+					ret = f(cast_arg<string>(args[0]));
+				},
+				[&](Fi_ss f) {
+					ret = f(cast_arg<string>(args[0]), cast_arg<string>(args[1]));
+				},
+				[&](Fb_ss f) {
+					ret = f(cast_arg<string>(args[0]), cast_arg<string>(args[1]));
+				},
 				[&](FN_N f) {
-					ret = Number{f(args[0])};
+					ret = Vararg{f(args[0])};
 				},
 		}, fv);
 

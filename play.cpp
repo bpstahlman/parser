@@ -8,9 +8,9 @@
 int main()
 {
 	Dispatcher disp;
-	Number result;
-	vector<Number> d_args {100.0};
-	vector<Number> dd_args {100.0, 200.0};
+	Vararg result;
+	vector<Vararg> d_args {100.0};
+	vector<Vararg> dd_args {100.0, 200.0};
 	//vector<long> l_args {1000};
 	//vector<long> ll_args {1000, 2000};
 	result = disp("foo", d_args);

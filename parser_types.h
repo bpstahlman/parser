@@ -11,36 +11,39 @@ using namespace std;
 // FIXME: Decide on home for this...
 struct None {};
 struct NaN {};
-// FIXME: Can't call this Number any more; maybe Arg or Var or Scalar?
-using Number = variant<None, bool, int, long, float, double, string>;
+// FIXME: Can't call this Vararg any more; maybe Arg or Var or Scalar?
+using Vararg = variant<None, bool, int, long, float, double, string>;
 
 // TODO: Decide on home for these types. Perhaps a common header?
 using Fd_d = function<double(double)>;
 using Fd_dd = function<double(double, double)>;
 using Fb_d = function<bool(double)>;
-using FN_N = function<Number(Number)>;
+using Fl_s = function<long(string)>;
+using Fi_ss = function<int(string, string)>;
+using Fb_ss = function<bool(string, string)>;
+using FN_N = function<Vararg(Vararg)>;
 
 // Generic arg type
-using Fv = variant<Fd_d, Fd_dd, Fb_d, FN_N>;
+using Fv = variant<Fd_d, Fd_dd, Fb_d, Fl_s, Fi_ss, Fb_ss, FN_N>;
 
-template<size_t I> using num_type_t = variant_alternative_t<I, Number>;
+template<size_t I> using num_type_t = variant_alternative_t<I, Vararg>;
 
-using symtbl = unordered_map<string, Number>;
+using symtbl = unordered_map<string, Vararg>;
 
 // TODO: Define in class?
 using parse_result = pair<bool, double>;
-using list_result = pair<bool, vector<Number>>;
-using numeric_result = pair<bool, Number>;
+using list_result = pair<bool, vector<Vararg>>;
+using numeric_result = pair<bool, Vararg>;
 
-ostream& operator<<(ostream& os, Number x);
-Number operator-(Number x);
-Number operator+(Number x, Number y);
-Number operator-(Number x, Number y);
-Number operator*(Number x, Number y);
-Number operator/(Number x, Number y);
+ostream& operator<<(ostream& os, Vararg x);
+Vararg operator-(Vararg x);
+Vararg operator+(Vararg x, Vararg y);
+Vararg operator-(Vararg x, Vararg y);
+Vararg operator*(Vararg x, Vararg y);
+Vararg operator/(Vararg x, Vararg y);
 
 template <typename T>
-void promote_and_set(Number& x, Number y, T val)
+void promote_and_set(Vararg& x, Vararg y, T val)
 {
 	visit([&](auto&& yval) {
 		using Ty = decay_t<decltype(yval)>;
@@ -68,9 +71,9 @@ void promote_and_set(Number& x, Number y, T val)
 	}, y);
 }
 
-// FIXME: Probably make this return Number of R, not actual R.
+// FIXME: Probably make this return Vararg of R, not actual R.
 template <typename R>
-R cast_arg(Number x)
+R cast_arg(Vararg x)
 {
 	return visit([&](auto&& val) {
 		using T = decay_t<decltype(val)>;
@@ -110,8 +113,8 @@ R cast_arg(Number x)
 			}
 			return res;
 		} else if constexpr (is_same_v<R, string>) {
-			// Number to string
-			// Assumption: Number can always be converted to string.
+			// Vararg to string
+			// Assumption: Vararg can always be converted to string.
 			return to_string(val);
 		} else {
 			return static_cast<R>(val);
